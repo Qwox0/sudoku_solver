@@ -1,0 +1,49 @@
+std :: #import "std";
+libc :: #import "libc";
+cell :: #import "cell.mylang";
+
+OPTIONS_COUNT : u64 : 9;
+SIDE_LEN :: OPTIONS_COUNT;
+CELL_COUNT :: SIDE_LEN * SIDE_LEN;
+
+// currently only supports a 9x9 grid with the usual 3x3 boxes.
+Sudoku :: struct {
+    grid: [CELL_COUNT]cell.SudokuCell,
+    with_diagonals := false,
+};
+
+verify :: (sudoku: *Sudoku) -> {
+    for y in 0..SIDE_LEN for x in 0..SIDE_LEN
+        if !cell.is_unique(sudoku.get_cell(x, y))
+            return false;
+    true
+}
+
+get_cell :: (sudoku: *Sudoku, x: u64, y: u64) -> sudoku.*.grid[y * SIDE_LEN + x];
+
+get_cell_mut :: (sudoku: *Sudoku, x: u64, y: u64) -> &mut sudoku.*.grid[y * SIDE_LEN + x];
+
+println :: (sudoku: *Sudoku) -> {
+    for y in 0..SIDE_LEN {
+        if y != 0 && y % 3 == 0 std.println("─────┼─────┼─────");
+        for x in 0..SIDE_LEN {
+            if x != 0 std.print(if x % 3 == 0 do "│" else " ");
+            libc.putchar(cell.to_char(sudoku.get_cell(x, y))); //sudoku.grid[y * SIDE_LEN + x] |> cell.to_char() |> libc.putchar();
+        }
+        libc.putchar('\n');
+    }
+}
+
+println_config :: (sudoku: *Sudoku) -> {
+    std.print("with_diagonals? ");
+    std.println(if sudoku.*.with_diagonals "true" else "false");
+}
+
+println_simple :: (sudoku: *Sudoku) -> {
+    for y in 0..SIDE_LEN {
+        for x in 0..SIDE_LEN
+            //sudoku.grid[y * SIDE_LEN + x] |> cell.to_char() |> libc.putchar();
+            libc.putchar(cell.to_char(sudoku.get_cell(x, y)));
+        libc.putchar('\n');
+    }
+}

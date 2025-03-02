@@ -1,0 +1,49 @@
+// TODO: move this to `./sudoku.mylang` when I have methods and struct namespaces.
+
+std :: #import "std";
+sudoku :: #import "sudoku.mylang";
+OPTIONS_COUNT :: sudoku.OPTIONS_COUNT;
+
+SudokuCell :: struct {
+    /// mask which represents all posible values of this cell.
+    /// [1, 0, 1, 0, 0, 0, 0, 0, 1] => '1' and '3' and '9' are posible values of this cell.
+    //options: [OPTIONS_COUNT]bool,
+    options: u16,
+};
+
+/// invalid cell
+zeroed :: () -> SudokuCell.(0);
+
+empty :: () -> SudokuCell.(!0);
+
+/// `num` has to be in the range `1..=9`
+fixed :: (num: u8) -> {
+    std.assert(num >= 1);
+    std.assert(num <= 9);
+    SudokuCell.(1 << (num.as(u16) - 1))
+}
+
+has_option :: (cell: SudokuCell, opt_idx: u16) -> cell.options & (1 << opt_idx) != 0;
+
+is_unique :: (cell: SudokuCell) -> bool {
+    mut options_count := 0;
+    for idx in 0..OPTIONS_COUNT {
+        if !has_option(cell, xx idx) continue;
+        options_count += 1;
+        if options_count >= 2 return false;
+    }
+    if options_count == 0 std.panic("invalid cell");
+    options_count == 1
+}
+
+to_char :: (cell: SudokuCell) -> u8 {
+    mut prev_opt_idx: i8 = -1;
+    for idx in 0..OPTIONS_COUNT {
+        if !has_option(cell, xx idx) continue;
+        if prev_opt_idx != -1 return '.';
+        prev_opt_idx = xx idx;
+    }
+    std.assert(prev_opt_idx < 9);
+    if prev_opt_idx == -1 do 'x' // zeroed/invalid cell
+    else '1' + xx prev_opt_idx
+}

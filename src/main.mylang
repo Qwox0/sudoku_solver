@@ -1,0 +1,101 @@
+std :: #import "std";
+libc :: #import "libc";
+parser :: #import "parser.mylang";
+sudoku :: #import "sudoku.mylang";
+cell :: #import "cell.mylang";
+
+main :: (argc: libc.c_int, argv: **libc.c_char) -> {
+    args := []*libc.c_char.{ ptr = argv, len = argc.as(u64) };
+    if args.len < 2 std.panic("Please provide the path to an input file as the first argument.");
+    if args.len > 2 std.println("WARN: expected only one argument");
+    input_file_path := args[1];
+    input_file_path := []u8.{ ptr = input_file_path, len = libc.strlen(input_file_path) };
+
+    std.print("received input file: '");
+    std.print(input_file_path);
+    std.println("'");
+
+    input := std.read_file_as_string_slice(input_file_path);
+    defer libc.free(xx input.ptr);
+    //libc.printf("%d\n".ptr, xx other.add(1, 2));
+
+    grid := parser.parse(input);
+
+    std.println("\n# Sudoku:");
+    sudoku.println(&grid);
+    sudoku.println_config(&grid);
+
+    solve(&mut grid);
+
+    if !sudoku.verify(&grid) {
+        std.println("\n# Partial solution:");
+        sudoku.println(&grid);
+        std.panic("Couldn't solve Sudoku!");
+    }
+
+    std.println("\n# Solution:");
+    sudoku.println(&grid);
+
+    0
+}
+
+solve :: (grid: *mut sudoku.Sudoku) -> {
+    finished_cells := .[false; sudoku.CELL_COUNT];
+
+    // update all empty cells and `finished_cells` based on the predefined numbers
+    for y in 0..sudoku.SIDE_LEN for x in 0..sudoku.SIDE_LEN {
+        if !cell.is_unique(sudoku.get_cell(grid, x, y)) continue;
+        finished_cells[y * sudoku.SIDE_LEN + x] = true;
+        update_surroundings(grid, x, y);
+    }
+
+    // update cells based on newly finished cells
+    mut did_update := true;
+    while did_update {
+        did_update = false;
+        for y in 0..sudoku.SIDE_LEN for x in 0..sudoku.SIDE_LEN {
+            if finished_cells[y * sudoku.SIDE_LEN + x] continue;
+            if !cell.is_unique(sudoku.get_cell(grid, x, y)) continue;
+            finished_cells[y * sudoku.SIDE_LEN + x] = true;
+            did_update = true;
+            update_surroundings(grid, x, y);
+        }
+    }
+}
+
+update_surroundings :: (grid: *mut sudoku.Sudoku, base_x: u64, base_y: u64) -> {
+    base_cell := sudoku.get_cell(grid, base_x, base_y);
+    std.assert(cell.is_unique(base_cell));
+    num_mask := base_cell.options;
+
+    // update row
+    for x in 0..sudoku.SIDE_LEN if x != base_x
+        sudoku.get_cell_mut(grid, x, base_y).*.options &= !num_mask;
+
+    // update colomn
+    for y in 0..sudoku.SIDE_LEN if y != base_y
+        sudoku.get_cell_mut(grid, base_x, y).*.options &= !num_mask;
+
+    // update box
+    box_x := base_x / 3;
+    box_y := base_y / 3;
+    for y in box_y * 3..(box_y + 1) * 3 {
+        for x in box_x * 3..(box_x + 1) * 3 {
+            if x == base_x && y == base_y continue;
+            sudoku.get_cell_mut(grid, x, y).*.options &= !num_mask;
+        }
+    }
+
+    // update diagonal
+    if grid.*.with_diagonals {
+        if base_x == base_y {
+            for i in 0..sudoku.SIDE_LEN if i != base_x
+                sudoku.get_cell_mut(grid, i, i).*.options &= !num_mask;
+        }
+        mirrored_diag_y :: (y: u64) -> sudoku.SIDE_LEN - 1 - y;
+        if base_x == mirrored_diag_y(base_y) {
+            for i in 0..sudoku.SIDE_LEN if i != base_x
+                sudoku.get_cell_mut(grid, i, mirrored_diag_y(i)).*.options &= !num_mask;
+        }
+    }
+}

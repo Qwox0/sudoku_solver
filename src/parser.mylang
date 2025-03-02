@@ -1,0 +1,105 @@
+std :: #import "std";
+libc :: #import "libc";
+sudoku :: #import "sudoku.mylang";
+//Sudoku :: sudoku.Sudoku;
+cell :: #import "cell.mylang";
+
+position :: (slice: []u8, target: u8) -> i64 {
+    for idx in 0..slice.len {
+        if slice[idx] == target return idx.as(i64);
+    }
+    return -1;
+}
+
+parse :: (input: []u8) -> sudoku.Sudoku {
+    grid := sudoku.Sudoku.(.[cell.zeroed(); sudoku.CELL_COUNT]);
+
+    ParsePhase :: enum {
+        Header,
+        Sudoku,
+        AfterSudoku,
+    }
+
+    mut phase := ParsePhase.Header;
+
+    mut lines := input[..];
+    mut row: u64 = 0;
+    mut line_nr := 0; // only used for error messages
+    while true {
+        len := lines.position('\n');
+        if len == -1 break;
+        line := lines[..len] |> trim_start();
+        lines = lines[len + 1..];
+        line_nr += 1;
+
+        if phase == .Header {
+            if line.len == 0 continue;
+            if line[0] == '@' {
+                std.print("found header: ");
+                std.print(line);
+                if std.streq(line, "@with_diagonals") {
+                    grid.with_diagonals = true;
+                    std.println(" (info: diagonals will be checked too)");
+                } else std.println(" (info: this header is currently not implemented)");
+            } else if is_cell(line[0])
+                phase = .Sudoku;
+        }
+        if phase == .Sudoku {
+            mut col: u64 = 0;
+
+            for char in line {
+                if char == ' ' continue;
+                c := if char >= '1' && char <= '9'
+                    cell.fixed(char - '0')
+                else if char == '.'
+                    cell.empty()
+                else {
+                    std.print("\nunexpected character: '");
+                    libc.putchar(char);
+                    std.println("'");
+                    std.panic("unexpected character; expected cell (1-9 or '.')")
+                };
+
+                if col >= sudoku.SIDE_LEN {
+                    libc.printf("too many cells in row %i".ptr, xx row + 1);
+                    libc.printf(" (line %i)\n".ptr, line_nr);
+                    std.panic("expected 9 cells per row");
+                }
+
+                grid.grid[row * sudoku.SIDE_LEN + col] = c;
+                col += 1;
+            }
+
+            if col < sudoku.SIDE_LEN {
+                libc.printf("too few cells in row %i".ptr, xx row + 1);
+                libc.printf(" (line %i)\n".ptr, line_nr);
+                libc.printf("found %i cells.\n".ptr, xx col);
+                std.panic("expected 9 cells per row");
+            }
+
+            row += 1;
+            if row == sudoku.SIDE_LEN do phase = .AfterSudoku;
+        } else if phase == .AfterSudoku {
+            if line.len == 0 continue;
+            if line[0] != '#' {
+                libc.printf("line %i is not a comment: '".ptr, line_nr);
+                std.print(line);
+                std.println("'");
+                std.panic("found non comment after sudoku");
+            }
+        }
+    }
+
+    if phase == .Header std.panic("input file doesn't contain a sudoku");
+    if phase == .Sudoku std.panic("input file contains an incomplete sudoku");
+
+    grid
+}
+
+is_cell :: (char: u8) -> char == '.' || (char >= '1' && char <= '9');
+
+trim_start :: (str: []u8) -> []u8 {
+    mut idx: u64 = 0;
+    while idx < str.len && str[idx] == ' ' do idx += 1;
+    str[idx..]
+}
